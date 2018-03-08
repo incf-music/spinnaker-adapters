@@ -1,0 +1,5 @@
+SUBDIRS = src
+
+README: README.md
+	ln -s README.md README
+

@@ -1,0 +1,11 @@
+np=1
+
+[spinn]
+  binary=spinnmusic-in
+  args=-l pop_forward -r 100 --port 19996
+
+[logger]
+  binary=eventlogger
+
+spinn.out->logger.in [100]
+
