@@ -137,7 +137,7 @@ main (int argc, char* argv[])
   getargs (rank, argc, argv);
 
   double stoptime;
-  setup->config ("stoptime", &stoptime);
+  setup->config ("stoptime", &stoptime); // add error handling
 
   char* receive_labels[1] = { (char*) label.c_str () };
   char const* local_host = NULL;
