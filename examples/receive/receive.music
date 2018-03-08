@@ -1,4 +1,5 @@
 np=1
+stoptime=8.0
 
 [spinn]
   binary=spinnmusic-in
