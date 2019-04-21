@@ -1,7 +1,7 @@
 /*
  *  spinnmusic_out.cpp
  *
- *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2019 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -50,6 +50,7 @@ usage (int rank)
 		<< "  -p, --port N            database notification port\n"
 		<< "  -t, --timestep TIMESTEP time between tick() calls (default " << DEFAULT_TIMESTEP << " s)\n"
 		<< "  -b, --maxbuffered TICKS maximal amount of data buffered\n"
+		<< "  -a, --adapter           play well with Weidel and Hoff's music-adapters\n"
 		<< "  -h, --help              print this help message\n";
     }
   exit (1);
@@ -61,6 +62,7 @@ int dbNotificationPort = 19999;
 int    nUnits;
 double timestep = DEFAULT_TIMESTEP;
 int    maxbuffered = 1;
+bool useBarrier = false;
 
 
 void
@@ -78,13 +80,14 @@ getargs (int rank, int argc, char* argv[])
 	  {"maxbuffered", required_argument, 0, 'b'},
 	  {"help",        no_argument,       0, 'h'},
 	  {"out",	  required_argument, 0, 'o'},
+	  {"adapter",	  no_argument, 0, 'a'},
 	  {0, 0, 0, 0}
 	};
       /* `getopt_long' stores the option index here. */
       int option_index = 0;
 
       // the + below tells getopt_long not to reorder argv
-      int c = getopt_long (argc, argv, "+l:r:t:b:h",
+      int c = getopt_long (argc, argv, "+l:r:t:b:ho:a",
 			   longOptions, &option_index);
 
       /* detect the end of the options */
@@ -98,6 +101,7 @@ getargs (int rank, int argc, char* argv[])
 	  continue;
 	case 'r':
 	  nUnits = atoi (optarg);
+	  continue;
 	case 't':
 	  timestep = atof (optarg); // NOTE: could do error checking
 	  continue;
@@ -106,6 +110,9 @@ getargs (int rank, int argc, char* argv[])
 	  continue;
 	case 'o':
 	  portName = optarg;
+	  continue;
+	case 'a':
+	  useBarrier = true;
 	  continue;
 	case 'p':
 	  dbNotificationPort = atoi (optarg);
@@ -138,24 +145,22 @@ main (int argc, char* argv[])
   double stoptime;
   setup->config ("stoptime", &stoptime);
 
-  char* receive_labels[1] = { (char*) label.c_str () };
+  char* send_labels[1] = { (char*) label.c_str () };
   char const* local_host = NULL;
   SpynnakerLiveSpikesConnection connection =
-    SpynnakerLiveSpikesConnection(1,
-				  receive_labels,
-				  0,
+    SpynnakerLiveSpikesConnection(0,
 				  NULL,
+				  1,
+				  send_labels,
 				  (char*) local_host,
 				  dbNotificationPort);
-  
-  MusicInputAdapter musicInput (setup, runtime, timestep, stoptime, label, nUnits, portName);
 
-  connection.add_start_callback ((char*) label.c_str (), &musicInput);
-  connection.add_pause_stop_callback ((char*) label.c_str (), &musicInput);
+  MusicInputAdapter* musicInput = new MusicInputAdapter (setup, runtime, timestep, stoptime, label, nUnits, portName, useBarrier);
 
-  musicInput.main_loop ();
+  connection.add_start_callback ((char*) label.c_str (), musicInput);
+  connection.add_pause_stop_callback ((char*) label.c_str (), musicInput);
 
-  runtime->finalize ();
+  musicInput->main_loop ();
 
   return 0;
 }
