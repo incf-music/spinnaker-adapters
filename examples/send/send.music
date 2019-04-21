@@ -1,0 +1,12 @@
+np=1
+stoptime=8.0
+
+[source]
+  binary=eventsource
+  args=-b 1 100 spikes
+
+[spinn]
+  binary=spinnmusic-out
+  args=-l spike_injector_forward -r 100 --port 19999
+
+source.out->spinn.in [100]
