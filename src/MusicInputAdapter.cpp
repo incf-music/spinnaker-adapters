@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2019 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,7 +37,8 @@ MusicInputAdapter::MusicInputAdapter (Setup* setup,
 				      double stoptime_,
 				      std::string label_,
 				      int nUnits,
-				      std::string portName)
+				      std::string portName,
+				      bool useBarrier)
   : clock (timestep), isStopping (false), stoptime (stoptime_), label (label_)
 {
   if (pthread_mutex_init (&(this->music_mutex), NULL) == -1)
@@ -51,6 +52,8 @@ MusicInputAdapter::MusicInputAdapter (Setup* setup,
   LinearIndex indices (0, nUnits);
   eventHandler = new MIAEventHandler (spikes);
   in->map (&indices, eventHandler);
+  if (useBarrier)
+    MPI::COMM_WORLD.Barrier();
   runtime = new Runtime (setup, timestep);
   this->runtime = runtime;
 }
@@ -69,10 +72,10 @@ MusicInputAdapter::spikes_start (char *label,
   connection = connection_;
   
   pthread_mutex_lock (&(this->start_mutex));
-  std::cerr << "Starting the simulation\n";
+  std::cerr << "MO: Starting the simulation\n";
   pthread_cond_signal (&(this->start_condition));
   pthread_mutex_unlock (&(this->start_mutex));
-  std::cerr << "Start signal sent\n";
+  std::cerr << "MO: Start signal sent\n";
 }
 
 
@@ -80,16 +83,18 @@ void
 MusicInputAdapter::waitForStart ()
 {
   pthread_mutex_lock (&(this->start_mutex));
+  std::cerr << "MO: Waiting for start\n";
   pthread_cond_wait (&(this->start_condition), &(this->start_mutex));
   pthread_mutex_unlock (&(this->start_mutex));
 }
 
 
+// Callback from SpiNNaker
 void
 MusicInputAdapter::spikes_stop (char *label,
 				SpynnakerLiveSpikesConnection *connection)
 {
-  std::cerr << "Stopping the simulation\n";
+  std::cerr << "MO: Stopping the simulation\n";
   pthread_mutex_lock (&(this->start_mutex));
   isStopping = true;
   pthread_cond_wait (&(this->start_condition), &(this->start_mutex));
@@ -101,11 +106,10 @@ MusicInputAdapter::spikes_stop (char *label,
 void
 MusicInputAdapter::stop ()
 {
-  std::cerr << "Stopping the simulation\n";
   pthread_mutex_lock (&(this->start_mutex));
   pthread_cond_signal (&(this->start_condition));
   pthread_mutex_unlock (&(this->start_mutex));
-  std::cerr << "Stop signal sent\n";
+  std::cerr << "MO: Stopped\n";
 }
 
 
@@ -134,10 +138,16 @@ void MusicInputAdapter::main_loop() {
       runtime->tick ();
       continue;
       
-    stop:
+    stop: // bug: don't do setNextTarget again!
       clock.stop ();
       stop ();
+#if 0 // We should be able to restart but disable this for now.
       waitForStart ();
       clock.start ();
+#else
+      break;
+#endif
     }
+
+  runtime->finalize ();
 }

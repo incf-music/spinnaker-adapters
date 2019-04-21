@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -44,7 +44,8 @@ public:
 			double stopTime,
 			std::string label,
 			int nUnits,
-			std::string portName);
+			std::string portName,
+			bool useBarrier = false);
     void main_loop();
     virtual void spikes_start (char *label,
 			       SpynnakerLiveSpikesConnection *connection);

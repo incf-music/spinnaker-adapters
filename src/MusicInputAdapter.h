@@ -83,7 +83,8 @@ public:
 		       double stopTime,
 		       std::string label,
 		       int nUnits,
-		       std::string portName);
+		       std::string portName,
+		       bool useBarrier = false);
     virtual ~MusicInputAdapter();
     
     void main_loop();

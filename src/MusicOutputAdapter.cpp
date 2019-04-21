@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2019 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,8 @@ MusicOutputAdapter::MusicOutputAdapter (Setup* setup,
 					double stoptime_,
 					std::string label,
 					int nUnits,
-					std::string portName)
+					std::string portName,
+					bool useBarrier)
   : clock (timestep), isStopping (false), stoptime (stoptime_)
 {
   if (pthread_mutex_init (&(this->music_mutex), NULL) == -1)
@@ -48,6 +49,8 @@ MusicOutputAdapter::MusicOutputAdapter (Setup* setup,
   out = setup->publishEventOutput (portName);
   LinearIndex indices (0, nUnits);
   out->map (&indices, MUSIC::Index::GLOBAL);
+  if (useBarrier)
+    MPI::COMM_WORLD.Barrier();
   runtime = new Runtime (setup, timestep);
   this->runtime = runtime;
 }
@@ -58,10 +61,10 @@ MusicOutputAdapter::spikes_start (char *label,
 				  SpynnakerLiveSpikesConnection *connection)
 {
   pthread_mutex_lock (&(this->start_mutex));
-  std::cerr << "Starting the simulation\n";
+  std::cerr << "MI: Starting the simulation\n";
   pthread_cond_signal (&(this->start_condition));
   pthread_mutex_unlock (&(this->start_mutex));
-  std::cerr << "Start signal sent\n";
+  std::cerr << "MI: Start signal sent\n";
 }
 
 
@@ -69,6 +72,7 @@ void
 MusicOutputAdapter::waitForStart ()
 {
   pthread_mutex_lock (&(this->start_mutex));
+  std::cerr << "MI: Waiting for start\n";
   pthread_cond_wait (&(this->start_condition), &(this->start_mutex));
   pthread_mutex_unlock (&(this->start_mutex));
 }
@@ -78,7 +82,7 @@ void
 MusicOutputAdapter::spikes_stop (char *label,
 				 SpynnakerLiveSpikesConnection *connection)
 {
-  std::cerr << "Stopping the simulation\n";
+  std::cerr << "MI: Stopping the simulation\n";
   pthread_mutex_lock (&(this->start_mutex));
   isStopping = true;
   pthread_cond_wait (&(this->start_condition), &(this->start_mutex));
@@ -90,11 +94,10 @@ MusicOutputAdapter::spikes_stop (char *label,
 void
 MusicOutputAdapter::stop ()
 {
-  std::cerr << "Stopping the simulation\n";
   pthread_mutex_lock (&(this->start_mutex));
   pthread_cond_signal (&(this->start_condition));
   pthread_mutex_unlock (&(this->start_mutex));
-  std::cerr << "Stop signal sent\n";
+  std::cerr << "MI: Stopped\n";
 }
 
 
@@ -137,8 +140,12 @@ void MusicOutputAdapter::main_loop() {
     stop:
       clock.stop ();
       stop ();
+#if 0 // We should be able to restart but disable this for now.
       waitForStart ();
       clock.start ();
+#else
+      break;
+#endif
     }
 }
 
