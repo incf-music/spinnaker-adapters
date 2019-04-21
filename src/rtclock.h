@@ -173,7 +173,7 @@ public:
 
 #ifdef CLOCK_GETTIME
 
-  inline double secondsFromTimespec (const struct timespec& tv) const;
+  static inline double secondsFromTimespec (const struct timespec& tv);
   
 #endif /* CLOCK_GETTIME */
   
@@ -183,7 +183,9 @@ private:
   struct timeval gridtime_;
   struct timeval interval_;
 #else
+public:
   struct timespec start_;
+  struct timespec offset_; // 
   struct timespec gridtime_;
   struct timespec interval_;
 #endif
@@ -207,12 +209,6 @@ RTClock::timevalFromSeconds (double t) const
   tv.tv_sec = t;
   tv.tv_usec = 1000000 * (t - tv.tv_sec);
   return tv;
-}
-
-inline double
-RTClock::secondsFromTimeval (const struct timeval& tv) const
-{
-  return tv.tv_sec + 1e-6 * tv.tv_usec;
 }
 
 inline double
@@ -262,7 +258,9 @@ RTClock::setNextTarget ()
 inline bool
 RTClock::lessThanTarget (const struct timespec* t)
 {
-  return timespeccmp (t, &gridtime_, <);
+  struct timespec absoluteT;
+  timespecadd (t, &start_, &absoluteT);
+  return timespeccmp (&absoluteT, &gridtime_, <);
 }
 
 inline bool
@@ -276,7 +274,7 @@ RTClock::pastTarget ()
 }
 
 inline double
-RTClock::secondsFromTimespec (const struct timespec& tv) const
+RTClock::secondsFromTimespec (const struct timespec& tv)
 {
   return tv.tv_sec + 1e-9 * tv.tv_nsec;
 }
