@@ -3,7 +3,7 @@
  *
  *  Realtime clock
  *
- *  Copyright (C) 2015, 2017, 2018 Mikael Djurfeldt
+ *  Copyright (C) 2015, 2017, 2018, 2021, 2022, 2023 Mikael Djurfeldt
  *
  *  rtclock is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by
@@ -80,6 +80,11 @@ public:
   void reset ();
   
   /**
+   * Synchronize with other running clock
+   */
+  void sync (RTClock& clock);
+  
+  /**
    * Reset time and stop clock.
    *
    * Store time 0. This has the same effect as stop (), except that
@@ -108,6 +113,8 @@ public:
    */
   double time () const;
 
+  void getTime (struct timespec *t);
+
   /**
    * Set time.
    */
@@ -119,6 +126,11 @@ public:
   void setNextTarget ();
 
   /**
+   * Return true if argument is less than current time
+   */
+  bool lessThanEql (const struct timespec* now, const struct timespec* t);
+  
+  /**
    * Return true if argument is less than target time
    */
   bool lessThanTarget (const struct timespec* t);
@@ -127,6 +139,11 @@ public:
    * Check if we have reached target time.
    */
   bool pastTarget ();
+
+  /**
+   * Check if we have reached target time.
+   */
+  bool pastTarget (struct timespec &now);
 
 #ifndef CLOCK_GETTIME
 
@@ -250,9 +267,25 @@ RTClock::time () const
 }
 
 inline void
+RTClock::getTime (struct timespec *t)
+{
+  if (clock_gettime (CLOCK_MONOTONIC, t) != 0)
+    throw std::runtime_error (std::string ("gettime() failed: ")
+			      + strerror (errno));  
+}
+
+inline void
 RTClock::setNextTarget ()
 {
   timespecadd (&gridtime_, &interval_, &gridtime_);
+}
+
+inline bool
+RTClock::lessThanEql (const struct timespec* t, const struct timespec* now)
+{
+  struct timespec absoluteT;
+  timespecadd (t, &start_, &absoluteT);
+  return timespeccmp (&absoluteT, now, <=);
 }
 
 inline bool
@@ -270,6 +303,12 @@ RTClock::pastTarget ()
   if (clock_gettime (CLOCK_MONOTONIC, &now) != 0)
     throw std::runtime_error (std::string ("gettime() failed: ")
 			      + strerror (errno));  
+  return timespeccmp (&now, &gridtime_, >=);
+}
+
+inline bool
+RTClock::pastTarget (struct timespec &now)
+{
   return timespeccmp (&now, &gridtime_, >=);
 }
 

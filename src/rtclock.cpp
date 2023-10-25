@@ -3,7 +3,7 @@
  *
  *  Realtime clock
  *
- *  Copyright (C) 2015, 2017, 2018, 2019 Mikael Djurfeldt
+ *  Copyright (C) 2015, 2017, 2018, 2019, 2021, 2022, 2023 Mikael Djurfeldt
  *
  *  rtclock is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by
@@ -42,6 +42,13 @@ RTClock::reset ()
     throw std::runtime_error (std::string ("gettime() failed: ")
 			      + strerror (errno));  
 #endif
+  gridtime_ = start_;
+}
+
+void
+RTClock::sync (RTClock& clock)
+{
+  start_ = clock.start_;
   gridtime_ = start_;
 }
 
@@ -85,6 +92,9 @@ RTClock::resetAndStop ()
 void
 RTClock::stop ()
 {
+  if (clock_gettime (CLOCK_MONOTONIC, &offset_) != 0)
+    throw std::runtime_error (std::string ("gettime() failed: ")
+			      + strerror (errno));  
   timespecsub (&start_, &offset_, &start_);
   timespecsub (&gridtime_, &offset_, &gridtime_);
 }
