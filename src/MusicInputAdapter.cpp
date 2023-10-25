@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017, 2018, 2019 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2019, 2021, 2022, 2023 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,12 +34,15 @@
 MusicInputAdapter::MusicInputAdapter (Setup* setup,
 				      Runtime*& runtime,
 				      double timestep,
+				      double delay,
+				      int maxBuffered,
 				      double stoptime_,
 				      std::string label_,
 				      int nUnits,
 				      std::string portName,
-				      bool useBarrier)
-  : clock (timestep), isStopping (false), stoptime (stoptime_), label (label_)
+				      bool useBarrier,
+				      double sync_)
+  : clock (timestep), syncClock (sync_), isStopping (false), stoptime (stoptime_), label (label_), sync (sync_)
 {
   if (pthread_mutex_init (&(this->music_mutex), NULL) == -1)
     throw std::runtime_error ("failed to initialize music mutex");
@@ -50,8 +53,11 @@ MusicInputAdapter::MusicInputAdapter (Setup* setup,
   
   in = setup->publishEventInput (portName);
   LinearIndex indices (0, nUnits);
-  eventHandler = new MIAEventHandler (spikes);
-  in->map (&indices, eventHandler);
+  eventHandler = new MIAEventHandler (spikes, delay);
+  if (maxBuffered > 0)
+    in->map (&indices, eventHandler, 0.0, maxBuffered);
+  else
+    in->map (&indices, eventHandler);
   if (useBarrier)
     MPI::COMM_WORLD.Barrier();
   runtime = new Runtime (setup, timestep);
@@ -112,8 +118,17 @@ MusicInputAdapter::stop ()
   std::cerr << "MO: Stopped\n";
 }
 
+// Use templates instead
 
 void MusicInputAdapter::main_loop() {
+  if (sync <= 0.0)
+    main_loop_nosync ();
+  else
+    main_loop_sync ();
+  runtime->finalize ();
+}
+
+void MusicInputAdapter::main_loop_nosync() {
   clock.resetAndStop ();
   waitForStart ();
   clock.start ();
@@ -122,32 +137,69 @@ void MusicInputAdapter::main_loop() {
       clock.setNextTarget ();
       // Send all spikes until next target.
 
-      // This should be elaborated such that we wait for either a
-      // spike or gridtime
-      while (!spikes.empty () && clock.lessThanTarget (spikes.top ().time ()))
-	{
-	  connection->send_spike ((char *) label.c_str (), spikes.top ().id ());
-	  spikes.pop ();
-	}
-      while (!clock.pastTarget ())
+      struct timespec t;
+      clock.getTime (&t);
+      while (!clock.pastTarget (t))
 	{
 	  if (isStopping)
 	    goto stop;
-	  sched_yield ();
+	  if (!spikes.empty () && clock.lessThanEql (spikes.top ().time (), &t))
+	    {
+	      connection->send_spike ((char *) label.c_str (), spikes.top ().id ());
+	      //std::cerr << RTClock::secondsFromTimespec(*spikes.top().time()) << '\t' << clock.time() << '\n';
+	      spikes.pop ();
+	    }
+	  else
+	    sched_yield ();
+	  clock.getTime (&t);
 	}
       runtime->tick ();
       continue;
       
-    stop: // bug: don't do setNextTarget again!
+    stop:
       clock.stop ();
       stop ();
-#if 0 // We should be able to restart but disable this for now.
-      waitForStart ();
-      clock.start ();
-#else
       break;
-#endif
     }
 
-  runtime->finalize ();
+}
+
+void MusicInputAdapter::main_loop_sync() {
+  clock.resetAndStop ();
+  waitForStart ();
+  clock.start ();
+  while (clock.time () < stoptime)
+    {
+      clock.setNextTarget ();
+      // Send all spikes until next target.
+
+      struct timespec t;
+      clock.getTime (&t);
+      while (!clock.pastTarget (t))
+	{
+	  if (isStopping)
+	    goto stop;
+	  if (!spikes.empty () && clock.lessThanEql (spikes.top ().time (), &t))
+	    {
+	      connection->send_spike ((char *) label.c_str (), spikes.top ().id ());
+	      //std::cerr << RTClock::secondsFromTimespec(*spikes.top().time()) << '\t' << clock.time() << '\n';
+	      spikes.pop ();
+	    }
+	  else
+	    sched_yield ();
+	  clock.getTime (&t);
+	}
+      clock.stop ();
+      runtime->tick ();
+      usleep (1000);
+      connection->continue_run ();
+      clock.start ();
+      continue;
+      
+    stop:
+      clock.stop ();
+      stop ();
+      break;
+    }
+
 }

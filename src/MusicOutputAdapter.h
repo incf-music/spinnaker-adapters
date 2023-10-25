@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2022, 2023 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@ public:
     MusicOutputAdapter (Setup* setup,
 			Runtime*& runtime,
 			double timestep,
+			double delay,
 			double stopTime,
 			std::string label,
 			int nUnits,
@@ -65,6 +66,7 @@ private:
     Runtime* runtime;
     EventOutputPort* out;
     RTClock clock;
+    double delay;
     bool isStopping;
     double stoptime;
 

@@ -1,7 +1,7 @@
 /*
  *  spinnmusic_out.cpp
  *
- *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2022, 2023 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@ usage (int rank)
 		<< "  -o, --out PORTNAME      output port name (default: out)\n"
 		<< "  -p, --port N            database notification port\n"
 		<< "  -t, --timestep TIMESTEP time between tick() calls (default " << DEFAULT_TIMESTEP << " s)\n"
+		<< "  -d, --delay DELAY       add DELAY to spike times\n"
 		<< "  -b, --maxbuffered TICKS maximal amount of data buffered\n"
 		<< "  -a, --adapter           play well with Weidel and Hoff's music-adapters\n"
 		<< "  -h, --help              print this help message\n";
@@ -61,6 +62,7 @@ string portName ("out");
 int dbNotificationPort = 19999;
 int    nUnits;
 double timestep = DEFAULT_TIMESTEP;
+double delay = 0.0;
 int    maxbuffered = 1;
 bool useBarrier = false;
 
@@ -77,6 +79,7 @@ getargs (int rank, int argc, char* argv[])
 	  {"range",       required_argument, 0, 'r'},
 	  {"port",        required_argument, 0, 'p'},
 	  {"timestep",    required_argument, 0, 't'},
+	  {"delay",       required_argument, 0, 'd'},
 	  {"maxbuffered", required_argument, 0, 'b'},
 	  {"help",        no_argument,       0, 'h'},
 	  {"out",	  required_argument, 0, 'o'},
@@ -87,7 +90,7 @@ getargs (int rank, int argc, char* argv[])
       int option_index = 0;
 
       // the + below tells getopt_long not to reorder argv
-      int c = getopt_long (argc, argv, "+l:r:t:b:ho:a",
+      int c = getopt_long (argc, argv, "+l:r:t:d:b:ho:a",
 			   longOptions, &option_index);
 
       /* detect the end of the options */
@@ -104,6 +107,9 @@ getargs (int rank, int argc, char* argv[])
 	  continue;
 	case 't':
 	  timestep = atof (optarg); // NOTE: could do error checking
+	  continue;
+	case 'd':
+	  delay = atof (optarg); // NOTE: could do error checking
 	  continue;
 	case 'b':
 	  maxbuffered = atoi (optarg);
@@ -155,7 +161,7 @@ main (int argc, char* argv[])
 				  (char*) local_host,
 				  dbNotificationPort);
   
-  MusicOutputAdapter musicOutput (setup, runtime, timestep, stoptime, label, nUnits, portName, useBarrier);
+  MusicOutputAdapter musicOutput (setup, runtime, timestep, delay, stoptime, label, nUnits, portName, useBarrier);
 
   connection.add_start_callback ((char*) label.c_str (), &musicOutput);
   connection.add_pause_stop_callback ((char*) label.c_str (), &musicOutput);

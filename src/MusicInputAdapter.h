@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017, 2018 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2021, 2022, 2023 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -58,16 +58,17 @@ class TimeIdPair
 
 class MIAEventHandler: public MUSIC::EventHandlerGlobalIndex {
 public:
-  MIAEventHandler (std::priority_queue<TimeIdPair>& spikes_)
-    : spikes (spikes_) { }
+  MIAEventHandler (std::priority_queue<TimeIdPair>& spikes_, double delay_)
+    : spikes (spikes_), delay (delay_) { }
   
   void operator () (double t, MUSIC::GlobalIndex id)
   {
-    spikes.push (TimeIdPair (t, id));
+    spikes.push (TimeIdPair (t + delay, id));
   }
 
  private:
   std::priority_queue<TimeIdPair>& spikes;
+  double delay;
 };
 
 
@@ -80,14 +81,19 @@ public:
     MusicInputAdapter (Setup* setup,
 		       Runtime*& runtime,
 		       double timestep,
+		       double delay,
+		       int maxBuffered,
 		       double stopTime,
 		       std::string label,
 		       int nUnits,
 		       std::string portName,
-		       bool useBarrier = false);
+		       bool useBarrier = false,
+		       double sync = 0.0);
     virtual ~MusicInputAdapter();
     
     void main_loop();
+    void main_loop_nosync();
+    void main_loop_sync();
     virtual void spikes_start (char *label,
 			       SpynnakerLiveSpikesConnection *connection);
     virtual void spikes_stop (char *label,
@@ -101,9 +107,12 @@ private:
     Runtime* runtime;
     EventInputPort* in;
     RTClock clock;
+    RTClock syncClock;
     bool isStopping;
     double stoptime;
     std::string label;
+
+    double sync;
     
     pthread_mutex_t music_mutex;
     pthread_mutex_t start_mutex;

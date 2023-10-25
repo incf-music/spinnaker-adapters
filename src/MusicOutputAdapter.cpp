@@ -1,7 +1,7 @@
 /*
  *  This file is part of spinnaker-adapters
  *
- *  Copyright (C) 2017, 2018, 2019 Mikael Djurfeldt <mikael@djurfeldt.com>
+ *  Copyright (C) 2017, 2018, 2019, 2022, 2023 Mikael Djurfeldt <mikael@djurfeldt.com>
  *
  *  libneurosim is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,12 +32,13 @@
 MusicOutputAdapter::MusicOutputAdapter (Setup* setup,
 					Runtime*& runtime,
 					double timestep,
+					double delay_,
 					double stoptime_,
 					std::string label,
 					int nUnits,
 					std::string portName,
 					bool useBarrier)
-  : clock (timestep), isStopping (false), stoptime (stoptime_)
+  : clock (timestep), delay (delay_), isStopping (false), stoptime (stoptime_)
 {
   if (pthread_mutex_init (&(this->music_mutex), NULL) == -1)
     throw std::runtime_error ("failed to initialize music mutex");
@@ -113,7 +114,7 @@ MusicOutputAdapter::receive_spikes (char *label,
   for (int i = 0; i < n_spikes; i++)
     {
       int id = spikes[i];
-      out->insertEvent (t, MUSIC::GlobalIndex (id));
+      out->insertEvent (t + delay, MUSIC::GlobalIndex (id));
     }
   pthread_mutex_unlock (&(this->music_mutex));
 }
@@ -140,12 +141,7 @@ void MusicOutputAdapter::main_loop() {
     stop:
       clock.stop ();
       stop ();
-#if 0 // We should be able to restart but disable this for now.
-      waitForStart ();
-      clock.start ();
-#else
       break;
-#endif
     }
 }
 
